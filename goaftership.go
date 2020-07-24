@@ -14,13 +14,10 @@ func init() {
 	baseUrl = "https://api.aftership.com/v4"
 }
 
-func PostTracking(apiKey string, courierSlug string, trackingNumber string) error {
-
+func post(apiKey string, uri string, requestBody []byte) (ResponseEnvelope, error) {
 	client := &http.Client{}
 
-	requestBody, _ := json.Marshal(&RequestEnvelope{TrackingRequest{TrackingNumber: trackingNumber}}) // sorry garbage collector
-
-	req, _ := http.NewRequest("POST", baseUrl+"/trackings", bytes.NewBuffer(requestBody))
+	req, _ := http.NewRequest("POST", baseUrl+uri, bytes.NewBuffer(requestBody))
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("aftership-api-key", apiKey)
@@ -31,11 +28,26 @@ func PostTracking(apiKey string, courierSlug string, trackingNumber string) erro
 
 	err := json.NewDecoder(res.Body).Decode(&envelope)
 	if err != nil {
-		return err
+		return ResponseEnvelope{}, err
 	}
 
 	if envelope.Meta.Code > 299 {
-		return errors.New(fmt.Sprintf("AfterShip API Error [%d]: %s", envelope.Meta.Code, envelope.Meta.Message))
+		return envelope, errors.New(fmt.Sprintf("AfterShip API Error [%d]: %s", envelope.Meta.Code, envelope.Meta.Message))
+	}
+
+	return envelope, nil
+
+}
+
+func PostTracking(apiKey string, courierSlug string, trackingNumber string) error {
+
+	requestBody, _ := json.Marshal(&RequestEnvelope{Tracking: TrackingRequest{TrackingNumber: trackingNumber}}) // sorry garbage collector
+
+	// don't even need the envelope (for now)
+	_, err := post(apiKey, "/trackings", requestBody)
+
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -68,5 +80,20 @@ func GetTracking(apiKey string, courierSlug string, trackingNumber string) (*Tra
 	}
 
 	return &envelope.Data.Tracking, nil
+
+}
+
+func PostNotification(apiKey string, courierSlug string, trackingNumber string, emails []string, phones []string) error {
+
+	requestBody, _ := json.Marshal(&RequestEnvelope{Notification: NotificationRequest{Emails: emails, SMSes: phones}}) // sorry garbage collector
+
+	// don't even need the envelope (for now)
+	_, err := post(apiKey, "/notifications/"+courierSlug+"/"+trackingNumber+"/add", requestBody)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 
 }
